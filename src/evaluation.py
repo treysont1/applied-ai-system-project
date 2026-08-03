@@ -279,3 +279,23 @@ def evaluate_path_metrics(
         "rule-based": compute_metrics(_to_ids(rule_results), relevant_ids, k),
         "hybrid": compute_metrics(_to_ids(hybrid_results), relevant_ids, k),
     }
+
+
+def summarize_benchmark_results(per_query_results: list[dict[str, dict[str, float]]]) -> dict[str, dict[str, float]]:
+    if not per_query_results:
+        return {}
+
+    paths = ["retrieval", "rule-based", "hybrid"]
+    metrics = ["precision@5", "precision@3", "recall@5", "mrr", "ndcg@5"]
+    summary: dict[str, dict[str, float]] = {}
+
+    for path in paths:
+        summary[path] = {}
+        for metric in metrics:
+            values = [result[path][metric] for result in per_query_results if metric in result[path]]
+            if not values:
+                summary[path][metric] = 0.0
+            else:
+                summary[path][metric] = round(sum(values) / len(values), 4)
+
+    return summary

@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from evaluation import build_relevant_ids, compute_metrics, evaluate_path_metrics, evaluate_query_appropriateness
+from evaluation import build_relevant_ids, compute_metrics, evaluate_path_metrics, evaluate_query_appropriateness, summarize_benchmark_results
 
 
 def test_build_relevant_ids_for_structured_query():
@@ -80,3 +80,23 @@ def test_evaluate_path_metrics_returns_metrics_for_all_paths():
     assert set(metrics) == {"retrieval", "rule-based", "hybrid"}
     assert metrics["retrieval"]["precision@3"] == 1 / 2
     assert metrics["hybrid"]["precision@3"] == 1.0
+
+
+def test_summarize_benchmark_results_averages_metrics_across_queries():
+    per_query_results = [
+        {
+            "retrieval": {"precision@5": 0.2, "mrr": 0.5},
+            "rule-based": {"precision@5": 0.4, "mrr": 0.6},
+            "hybrid": {"precision@5": 0.6, "mrr": 0.7},
+        },
+        {
+            "retrieval": {"precision@5": 0.4, "mrr": 0.8},
+            "rule-based": {"precision@5": 0.6, "mrr": 0.9},
+            "hybrid": {"precision@5": 0.8, "mrr": 1.0},
+        },
+    ]
+
+    summary = summarize_benchmark_results(per_query_results)
+
+    assert summary["retrieval"]["precision@5"] == 0.3
+    assert summary["hybrid"]["mrr"] == 0.85
