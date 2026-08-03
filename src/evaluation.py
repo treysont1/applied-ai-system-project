@@ -28,46 +28,87 @@ def _as_float(value: Any) -> float:
     return float(value)
 
 
-def _build_rule(query: dict[str, Any]) -> tuple[dict[str, Any], str]:
+def _percentile(values: list[float], q: float) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    if len(ordered) == 1:
+        return ordered[0]
+    pos = (len(ordered) - 1) * q
+    lower = int(math.floor(pos))
+    upper = int(math.ceil(pos))
+    if lower == upper:
+        return ordered[lower]
+    weight = pos - lower
+    return ordered[lower] + (ordered[upper] - ordered[lower]) * weight
+
+
+def _threshold_for(songs: list[dict[str, Any]], field: str, direction: str, fallback: float) -> float:
+    values = []
+    for song in songs:
+        raw = song.get(field)
+        if raw is None:
+            continue
+        try:
+            values.append(float(raw))
+        except (TypeError, ValueError):
+            continue
+    if not values:
+        return fallback
+    if len(values) < 5:
+        return fallback
+    if direction == "high":
+        return round(_percentile(values, 0.75), 3)
+    if direction == "low":
+        return round(_percentile(values, 0.25), 3)
+    return round(_percentile(values, 0.5), 3)
+
+
+def _build_rule(query: dict[str, Any], songs: list[dict[str, Any]] | None = None) -> tuple[dict[str, Any], str]:
     q = query["query"].lower()
     rules: dict[str, Any] = {}
 
-    if "pop" in q:
-        rules["genre"] = "pop"
-    if "rock" in q:
-        rules["genre"] = "rock"
-    if "country" in q:
-        rules["genre"] = "country"
-    if "jazz" in q:
-        rules["genre"] = "jazz"
-    if "electronic" in q:
-        rules["genre"] = "electronic"
-    if "folk" in q:
-        rules["genre"] = "folk"
-    if "indie" in q:
-        rules["genre"] = "indie"
+    if songs is None:
+        songs = []
+
+    energy_threshold = _threshold_for(songs, "energy", "high", 0.75)
+    acoustic_threshold_high = _threshold_for(songs, "acousticness", "high", 0.7)
+    acoustic_threshold_low = _threshold_for(songs, "acousticness", "low", 0.2)
+    danceability_threshold = _threshold_for(songs, "danceability", "high", 0.7)
+    valence_threshold_low = _threshold_for(songs, "valence", "low", 0.3)
+    tempo_threshold = _threshold_for(songs, "tempo_bpm", "high", 150)
+    popularity_threshold = _threshold_for(songs, "track_popularity", "high", 90)
+    instrumental_threshold = _threshold_for(songs, "instrumentalness", "high", 0.5)
+
+    genre_terms = ("pop", "rock", "country", "jazz", "electronic", "folk", "indie")
+    for genre in genre_terms:
+        if genre in q:
+            rules["genre"] = genre
+            break
+
     if "happy" in q:
         rules["mood"] = "happy"
     if "sad" in q:
         rules["mood"] = "sad"
-    if "upbeat" in q:
-        rules["mood"] = "happy"
-    if "mellow" in q:
+    if "mellow" in q or "relaxing" in q or "chill" in q:
         rules["mood"] = "chill"
-    if "relaxing" in q:
-        rules["mood"] = "chill"
-    if "energetic" in q or "high-energy" in q or "high energy" in q or "fast" in q or "upbeat" in q:
-        rules["energy"] = 0.75
-    if "low acousticness" in q or "highly acoustic" in q or "acoustic" in q:
-        rules["acousticness"] = 0.7 if "highly acoustic" in q or "acoustic" in q else 0.2
+
+    if any(term in q for term in ["energetic", "high-energy", "high energy", "fast", "upbeat", "workout"]):
+        rules["energy"] = {"op": ">=", "value": energy_threshold}
+    if "instrumental" in q:
+        rules["instrumentalness"] = {"op": ">=", "value": instrumental_threshold}
+    if "low acousticness" in q:
+        rules["acousticness"] = {"op": "<=", "value": acoustic_threshold_low}
+    elif "highly acoustic" in q or "acoustic" in q:
+        rules["acousticness"] = {"op": ">=", "value": acoustic_threshold_high}
     if "danceable" in q or "dance" in q:
-        rules["danceability"] = 0.7
-    if "valence" in q or "low-valence" in q:
-        rules["valence"] = 0.3
-    if "150 bpm" in q or "high-tempo" in q or "tempo" in q:
-        rules["tempo_bpm"] = 150
+        rules["danceability"] = {"op": ">=", "value": danceability_threshold}
+    if "low-valence" in q or "low valence" in q:
+        rules["valence"] = {"op": "<=", "value": valence_threshold_low}
+    if "150 bpm" in q or "high-tempo" in q or "high tempo" in q or "tempo" in q:
+        rules["tempo_bpm"] = {"op": ">=", "value": tempo_threshold}
     if "popular" in q:
-        rules["track_popularity"] = 90
+        rules["track_popularity"] = {"op": ">=", "value": popularity_threshold}
 
     return rules, q
 
@@ -82,46 +123,98 @@ def _song_id(song: dict[str, Any]) -> str:
     return ""
 
 
+def _satisfies_rule(song: dict[str, Any], field: str, expected: Any) -> bool:
+    if isinstance(expected, dict):
+        op = expected.get("op", ">=")
+        value = expected.get("value", 0)
+    else:
+        op = ">="
+        value = expected
+
+    if field == "genre":
+        return str(song.get("genre", "")).lower() == str(value).lower()
+    if field == "mood":
+        return str(song.get("mood", "")).lower() == str(value).lower()
+
+    current = song.get(field)
+    if current is None:
+        return False
+    try:
+        current_value = float(current)
+    except (TypeError, ValueError):
+        return False
+
+    if op == ">=":
+        return current_value >= float(value)
+    if op == "<=":
+        return current_value <= float(value)
+    return False
+
+
 def build_relevant_ids(query: dict[str, Any], songs: list[dict[str, Any]]) -> set[str]:
-    rules, _ = _build_rule(query)
+    rules, _ = _build_rule(query, songs)
     relevant: set[str] = set()
 
     for song in songs:
         matches = 0
         for field, expected in rules.items():
-            if field == "genre":
-                if song.get("genre", "").lower() == expected:
-                    matches += 1
-            elif field == "mood":
-                if song.get("mood", "").lower() == expected:
-                    matches += 1
-            elif field == "energy":
-                if _as_float(song.get("energy", 0.0)) >= expected:
-                    matches += 1
-            elif field == "acousticness":
-                if expected == 0.7:
-                    if _as_float(song.get("acousticness", 0.0)) >= 0.7:
-                        matches += 1
-                else:
-                    if _as_float(song.get("acousticness", 0.0)) <= expected:
-                        matches += 1
-            elif field == "danceability":
-                if _as_float(song.get("danceability", 0.0)) >= expected:
-                    matches += 1
-            elif field == "valence":
-                if _as_float(song.get("valence", 0.0)) <= expected:
-                    matches += 1
-            elif field == "tempo_bpm":
-                if _as_float(song.get("tempo_bpm", 0.0)) >= expected:
-                    matches += 1
-            elif field == "track_popularity":
-                if _as_float(song.get("track_popularity", 0.0)) >= expected:
-                    matches += 1
+            if _satisfies_rule(song, field, expected):
+                matches += 1
 
         if matches == len(rules):
             relevant.add(_song_id(song))
 
     return relevant
+
+
+def evaluate_query_appropriateness(query: dict[str, Any], songs: list[dict[str, Any]]) -> dict[str, Any]:
+    rules, _ = _build_rule(query, songs)
+    relevant = build_relevant_ids(query, songs)
+    query_type = query.get("type", "unknown")
+
+    if not rules:
+        if query_type == "semantic":
+            return {
+                "appropriate": True,
+                "status": "semantic-review",
+                "relevant_count": len(relevant),
+                "rule_count": 0,
+                "reason": "No metadata rules could be inferred from the query, so it should be reviewed manually.",
+            }
+        return {
+            "appropriate": False,
+            "status": "needs-manual-review",
+            "relevant_count": len(relevant),
+            "rule_count": 0,
+            "reason": "No metadata rules could be inferred from the query.",
+        }
+
+    if query_type == "semantic":
+        return {
+            "appropriate": len(relevant) >= 3,
+            "status": "semantic-review",
+            "relevant_count": len(relevant),
+            "rule_count": len(rules),
+            "reason": "Semantic queries need manual review because the metadata rules are only approximate.",
+        }
+
+    if len(relevant) >= 10:
+        status = "strong-fit"
+        appropriate = True
+    elif len(relevant) >= 3:
+        status = "moderate-fit"
+        appropriate = True
+    else:
+        status = "weak-fit"
+        appropriate = False
+
+    return {
+        "appropriate": appropriate,
+        "status": status,
+        "relevant_count": len(relevant),
+        "rule_count": len(rules),
+        "reason": "The query maps to metadata rules and the catalog has enough matching songs.",
+    }
 
 
 def compute_metrics(retrieved_ids: list[str], relevant_ids: set[str], k: int) -> dict[str, float]:
