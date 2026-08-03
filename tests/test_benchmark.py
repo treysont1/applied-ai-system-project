@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from evaluation import build_relevant_ids, compute_metrics
+from evaluation import build_relevant_ids, compute_metrics, evaluate_query_appropriateness
 
 
 def test_build_relevant_ids_for_structured_query():
@@ -36,3 +36,21 @@ def test_compute_metrics_returns_expected_values():
     assert metrics["recall@5"] == 1.0
     assert metrics["mrr"] == 1.0
     assert metrics["ndcg@5"] > 0.8
+
+
+def test_evaluate_query_appropriateness_marks_semantic_queries_for_review():
+    songs = [
+        {"id": "s1", "genre": "pop", "mood": "happy", "energy": 0.8, "acousticness": 0.2, "danceability": 0.7},
+        {"id": "s2", "genre": "rock", "mood": "sad", "energy": 0.5, "acousticness": 0.8, "danceability": 0.4},
+    ]
+    query = {
+        "id": "Q21",
+        "query": "songs for a rainy day",
+        "type": "semantic",
+    }
+
+    result = evaluate_query_appropriateness(query, songs)
+
+    assert result["status"] == "semantic-review"
+    assert result["appropriate"] is True
+    assert result["rule_count"] == 0
