@@ -1,0 +1,122 @@
+[
+    {
+        "id": "Q01",
+        "query": "energetic pop songs",
+        "type": "structured"
+    },
+    {
+        "id": "Q02",
+        "query": "instrumental jazz music",
+        "type": "structured"
+    },
+    {
+        "id": "Q03",
+        "query": "happy country songs",
+        "type": "structured"
+    },
+    {
+        "id": "Q04",
+        "query": "mellow acoustic folk songs",
+        "type": "structured"
+    },
+    {
+        "id": "Q05",
+        "query": "upbeat rock songs",
+        "type": "structured"
+    },
+    {
+        "id": "Q06",
+        "query": "sad indie songs",
+        "type": "structured"
+    },
+    {
+        "id": "Q07",
+        "query": "songs over 150 BPM",
+        "type": "numeric"
+    },
+    {
+        "id": "Q08",
+        "query": "high-energy workout songs",
+        "type": "numeric"
+    },
+    {
+        "id": "Q09",
+        "query": "very danceable songs",
+        "type": "numeric"
+    },
+    {
+        "id": "Q10",
+        "query": "highly acoustic songs",
+        "type": "numeric"
+    },
+    {
+        "id": "Q11",
+        "query": "low-valence songs",
+        "type": "numeric"
+    },
+    {
+        "id": "Q12",
+        "query": "popular songs",
+        "type": "numeric"
+    },
+    {
+        "id": "Q13",
+        "query": "upbeat pop songs for working out",
+        "type": "mixed"
+    },
+    {
+        "id": "Q14",
+        "query": "fast electronic songs with high energy",
+        "type": "mixed"
+    },
+    {
+        "id": "Q15",
+        "query": "happy dance songs",
+        "type": "mixed"
+    },
+    {
+        "id": "Q16",
+        "query": "relaxing instrumental music",
+        "type": "mixed"
+    },
+    {
+        "id": "Q17",
+        "query": "energetic rock songs with low acousticness",
+        "type": "mixed"
+    },
+    {
+        "id": "Q18",
+        "query": "sad acoustic songs",
+        "type": "mixed"
+    },
+    {
+        "id": "Q19",
+        "query": "high-tempo pop songs",
+        "type": "mixed"
+    },
+    {
+        "id": "Q20",
+        "query": "danceable electronic music",
+        "type": "mixed"
+    },
+    {
+        "id": "Q21",
+        "query": "songs for a rainy day",
+        "type": "semantic"
+    },
+    {
+        "id": "Q22",
+        "query": "music for studying",
+        "type": "semantic"
+    },
+    {
+        "id": "Q23",
+        "query": "late-night drive music",
+        "type": "semantic"
+    },
+    {
+        "id": "Q24",
+        "query": "nostalgic songs",
+        "type": "semantic"
+    }
+]
