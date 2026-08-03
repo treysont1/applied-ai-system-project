@@ -249,3 +249,33 @@ def compute_metrics(retrieved_ids: list[str], relevant_ids: set[str], k: int) ->
         "mrr": mrr,
         "ndcg@5": ndcg,
     }
+
+
+def evaluate_path_metrics(
+    query: dict[str, Any],
+    songs: list[dict[str, Any]],
+    retrieval_results: list[dict[str, Any]],
+    rule_results: list[dict[str, Any]],
+    hybrid_results: list[dict[str, Any]],
+    k: int = 5,
+) -> dict[str, dict[str, float]]:
+    relevant_ids = build_relevant_ids(query, songs)
+
+    def _to_ids(results: list[dict[str, Any]]) -> list[str]:
+        ids = []
+        for song in results:
+            title = song.get("title", "")
+            artist = song.get("artist", "")
+            if title or artist:
+                ids.append(f"{title}|{artist}")
+            elif song.get("id"):
+                ids.append(str(song["id"]))
+            else:
+                ids.append("")
+        return ids
+
+    return {
+        "retrieval": compute_metrics(_to_ids(retrieval_results), relevant_ids, k),
+        "rule-based": compute_metrics(_to_ids(rule_results), relevant_ids, k),
+        "hybrid": compute_metrics(_to_ids(hybrid_results), relevant_ids, k),
+    }

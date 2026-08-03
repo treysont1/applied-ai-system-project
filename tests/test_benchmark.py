@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from evaluation import build_relevant_ids, compute_metrics, evaluate_query_appropriateness
+from evaluation import build_relevant_ids, compute_metrics, evaluate_path_metrics, evaluate_query_appropriateness
 
 
 def test_build_relevant_ids_for_structured_query():
@@ -54,3 +54,29 @@ def test_evaluate_query_appropriateness_marks_semantic_queries_for_review():
     assert result["status"] == "semantic-review"
     assert result["appropriate"] is True
     assert result["rule_count"] == 0
+
+
+def test_evaluate_path_metrics_returns_metrics_for_all_paths():
+    songs = [
+        {"id": "s1", "genre": "pop", "mood": "happy", "energy": 0.8, "acousticness": 0.2, "danceability": 0.7},
+        {"id": "s2", "genre": "rock", "mood": "sad", "energy": 0.5, "acousticness": 0.8, "danceability": 0.4},
+        {"id": "s3", "genre": "pop", "mood": "happy", "energy": 0.85, "acousticness": 0.1, "danceability": 0.8},
+    ]
+    query = {
+        "id": "Q01",
+        "query": "pop songs",
+        "type": "structured",
+    }
+
+    metrics = evaluate_path_metrics(
+        query,
+        songs,
+        retrieval_results=[{"id": "s1"}, {"id": "s2"}],
+        rule_results=[{"id": "s2"}, {"id": "s1"}],
+        hybrid_results=[{"id": "s1"}, {"id": "s3"}],
+        k=3,
+    )
+
+    assert set(metrics) == {"retrieval", "rule-based", "hybrid"}
+    assert metrics["retrieval"]["precision@3"] == 1 / 2
+    assert metrics["hybrid"]["precision@3"] == 1.0
