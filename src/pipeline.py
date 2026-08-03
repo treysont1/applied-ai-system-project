@@ -5,10 +5,18 @@ Coordinates:
   validate → extract_prefs → parallel retrieve → fuse → generate
 """
 
-from rag import retrieve, generate, K_RETRIEVE
+import re
+from pathlib import Path
+
 from ranking import extract_preferences, fuse, KEYWORD_BANK
 from recommender import load_songs, recommend_songs
-from pathlib import Path
+
+try:
+    from rag import retrieve, generate, K_RETRIEVE
+except Exception:
+    retrieve = None
+    generate = None
+    K_RETRIEVE = 50
 
 # Constants
 K_FINAL = 10
@@ -51,6 +59,59 @@ def _retrieve_rules(prefs: dict, k: int) -> list[dict]:
     return [song for song, _score, _explanation in scored]
 
 
+def _fallback_retrieve(query: str, k: int) -> tuple[list[dict], list[float]]:
+    terms = set(re.findall(r"\b\w+\b", query.lower()))
+    if not terms:
+        return [], []
+
+    scored: list[tuple[dict, float]] = []
+    for song in _all_songs:
+        song_text = " ".join([
+            song.get("title", ""),
+            song.get("artist", ""),
+            song.get("genre", ""),
+            song.get("mood", ""),
+            str(song.get("energy", "")),
+            str(song.get("tempo_bpm", "")),
+            str(song.get("valence", "")),
+            str(song.get("danceability", "")),
+            str(song.get("acousticness", "")),
+        ]).lower()
+        song_terms = set(re.findall(r"\b\w+\b", song_text))
+        overlap = len(terms & song_terms)
+        if overlap > 0:
+            scored.append((song, overlap))
+
+    scored.sort(key=lambda item: item[1], reverse=True)
+    ranked_songs = [song for song, _ in scored[:k]]
+    similarities = [round(min(1.0, score / max(1, len(terms))), 3) for _, score in scored[:k]]
+    return ranked_songs, similarities
+
+
+def get_rag_results(query: str) -> tuple[list[dict], list[float]]:
+    if retrieve is None:
+        return _fallback_retrieve(query, k=K_RETRIEVE)
+    return retrieve(query, k=K_RETRIEVE)
+
+
+def get_hybrid_results(query: str, respect_confidence: bool = False) -> list[dict]:
+    error = _validate_query(query)
+    if error:
+        return []
+
+    prefs = extract_preferences(query)
+    rag_songs, similarities = get_rag_results(query)
+    rule_songs = _retrieve_rules(prefs, k=K_RETRIEVE)
+
+    avg_similarity = 0.0
+    if similarities:
+        avg_similarity = round(sum(similarities) / len(similarities), 3)
+    if respect_confidence and avg_similarity < LOW_CONFIDENCE_THRESHOLD:
+        return []
+
+    return fuse(rag_songs, rule_songs, k_final=K_FINAL)
+
+
 def recommend(query: str) -> str:
     """
     Takes a natural language query and returns a Gemini-generated recommendation.
@@ -60,22 +121,11 @@ def recommend(query: str) -> str:
     if error:
         return f"[Input validation] {error}"
 
-    prefs = extract_preferences(query)
-    
-    rag_songs, similarities = retrieve(query, k=K_RETRIEVE)
-    rule_songs = _retrieve_rules(prefs, k=K_RETRIEVE)
+    fused_songs = get_hybrid_results(query, respect_confidence=True)
+    if not fused_songs:
+        return "[Low confidence] The catalog doesn't have strong matches for that query."
 
-    avg_similarity = round(sum(similarities) / len(similarities), 3)
-    print(f"Retrieval confidence — top {K_RETRIEVE} RAG songs, avg similarity: {avg_similarity} "
-        f"(range: {min(similarities)}–{max(similarities)})\n")
+    if generate is None:
+        return "[Benchmark mode] Hybrid ranking completed, but Gemini generation is unavailable."
 
-
-    if avg_similarity < LOW_CONFIDENCE_THRESHOLD:
-        return (
-            f"[Low confidence — avg similarity: {avg_similarity}] "
-            "The catalog doesn't have strong matches for that query. "
-            "Try rephrasing with a genre, mood, or activity."
-        )
-    
-    fused_songs = fuse(rag_songs, rule_songs, k_final=K_FINAL)
     return generate(query, fused_songs)
