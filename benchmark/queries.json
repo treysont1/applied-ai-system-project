@@ -6,8 +6,8 @@
     },
     {
         "id": "Q02",
-        "query": "instrumental jazz music",
-        "type": "structured"
+        "query": "songs that feel warm and mellow",
+        "type": "mixed"
     },
     {
         "id": "Q03",
@@ -26,8 +26,8 @@
     },
     {
         "id": "Q06",
-        "query": "sad indie songs",
-        "type": "structured"
+        "query": "songs that feel emotionally heavy",
+        "type": "mixed"
     },
     {
         "id": "Q07",
@@ -56,8 +56,8 @@
     },
     {
         "id": "Q12",
-        "query": "popular songs",
-        "type": "numeric"
+        "query": "songs that make me want to move",
+        "type": "mixed"
     },
     {
         "id": "Q13",
@@ -76,13 +76,13 @@
     },
     {
         "id": "Q16",
-        "query": "relaxing instrumental music",
+        "query": "calm piano songs with low energy",
         "type": "mixed"
     },
     {
         "id": "Q17",
-        "query": "energetic rock songs with low acousticness",
-        "type": "mixed"
+        "query": "music that feels bright and energizing",
+        "type": "semantic"
     },
     {
         "id": "Q18",
@@ -101,7 +101,7 @@
     },
     {
         "id": "Q21",
-        "query": "songs for a rainy day",
+        "query": "calm instrumental songs for studying",
         "type": "semantic"
     },
     {
@@ -116,7 +116,7 @@
     },
     {
         "id": "Q24",
-        "query": "nostalgic songs",
+        "query": "warm acoustic songs with a nostalgic feel",
         "type": "semantic"
     }
 ]
